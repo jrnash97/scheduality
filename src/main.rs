@@ -6,26 +6,22 @@ use utils::*;
 mod commands;
 mod db;
 mod events;
+mod modals;
 mod utils;
 
 #[tokio::main]
 async fn main() {
-    let token = std::env::var("DISCORD_TOKEN").expect("Could not find valid DISCORD_TOKEN");
-    let db_pass = std::env::var("DB_PASS").expect("Could not find DATABASE_PASS");
+    let (token, pass, db_name, host) = connection_vars();
+
     let intents = serenity::GatewayIntents::non_privileged();
-    let pool: PgPool = PgPool::connect(
-        format!(
-            "postgresql://postgres:{}@138.68.176.79:5432/postgres",
-            db_pass
-        )
-        .as_str(),
-    )
-    .await
-    .expect("Could not connect to database");
+    let pool: PgPool =
+        PgPool::connect(format!("postgresql://scheduardo:{pass}@{host}:5432/{db_name}").as_str())
+            .await
+            .expect("Could not connect to database");
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![age(), hello()],
+            commands: vec![age(), hello(), add()],
             event_handler: |ctx, event, framework, data| {
                 Box::pin(events::event_handler(ctx, event, framework, data))
             },
@@ -42,5 +38,21 @@ async fn main() {
     let client = serenity::ClientBuilder::new(token, intents)
         .framework(framework)
         .await;
+
     client.unwrap().start().await.unwrap();
+}
+
+fn connection_vars() -> (String, String, String, String) {
+    let token = std::env::var("DISCORD_TOKEN").expect("Could not find valid DISCORD_TOKEN");
+    let pass =
+        std::env::var("SCHEDUARDO_DB_PASS").expect("Could not find valid database credentials");
+    let host = std::env::var("SCHEDUALITY_HOST").unwrap_or("127.0.0.1".to_string());
+    let db_name = if cfg!(debug_assertions) {
+        "scheduality_dev"
+    } else {
+        "scheduality"
+    }
+    .to_string();
+
+    (token, pass, db_name, host)
 }

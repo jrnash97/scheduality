@@ -1,5 +1,7 @@
+use crate::modals::*;
 use crate::utils::*;
 use poise::serenity_prelude as serenity;
+use poise::Modal;
 
 /// Displays your or another user's account creation date
 #[poise::command(slash_command, prefix_command)]
@@ -17,5 +19,12 @@ pub async fn age(
 #[poise::command(slash_command)]
 pub async fn hello(ctx: Context<'_>) -> Result<(), Error> {
     ctx.say("World!").await?;
+    Ok(())
+}
+
+/// Add release
+#[poise::command(slash_command)]
+pub async fn add(ctx: poise::ApplicationContext<'_, Data, Error>) -> Result<(), Error> {
+    AddRelease::execute(ctx).await?;
     Ok(())
 }
