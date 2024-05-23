@@ -1,7 +1,7 @@
 use crate::db;
 use crate::modals::ReleaseSubmission;
 use crate::utils::*;
-use poise::serenity_prelude::{self as serenity, CacheHttp};
+use poise::serenity_prelude as serenity;
 use sqlx::Executor;
 
 pub async fn event_handler(
@@ -27,10 +27,15 @@ pub async fn event_handler(
             println!("{} is online.", data_about_bot.user.name);
         }
         serenity::FullEvent::GuildCreate { guild, .. } => {
-            db::create_guild(&guild, &data.pool).await?
+            db::create_guild(&guild, &data.pool)
+                .await
+                .expect("Couldn't add guild'");
         }
         serenity::FullEvent::GuildDelete { incomplete, .. } => {
-            db::remove_guild(&incomplete.id, &data.pool).await?
+            println!("{incomplete:#?}");
+            db::remove_guild(&incomplete.id, &data.pool)
+                .await
+                .expect("Couldn't remove guild'")
         }
         serenity::FullEvent::InteractionCreate { interaction } => {
             if let serenity::InteractionType::Modal = interaction.kind() {
@@ -38,6 +43,7 @@ pub async fn event_handler(
                     .to_owned()
                     .modal_submit()
                     .ok_or(Error::from("Something went wrong on modal submittion"))?;
+                println!("{interaction:#?}");
                 let modal_response = interaction.data;
                 let guild_id = interaction.guild_id.unwrap();
                 let user = interaction.user;
@@ -45,10 +51,11 @@ pub async fn event_handler(
                 let release_data = ReleaseSubmission::from_modal_response(modal_response)?;
                 println!("{release_data:#?}");
 
-                if let Err(err) =
-                    db::add_release_to_guild(&guild_id, &user, ctx, &release_data, &data.pool).await
+                match db::add_release_to_guild(&guild_id, &user, ctx, &release_data, &data.pool)
+                    .await
                 {
-                    println!("{}", err.to_string());
+                    Ok(_) => (),
+                    Err(err) => println!("{}", err.to_string()),
                 }
             }
         }

@@ -101,7 +101,13 @@ impl ReleaseSubmission {
             .filter_map(|row| {
                 if let Some(input_text) = row {
                     match input_text.custom_id.as_str() {
-                        "label" => input_text.value.take(),
+                        "label" => {
+                            if input_text.value == Some("".to_string()) {
+                                None
+                            } else {
+                                input_text.value.take()
+                            }
+                        }
                         _ => None,
                     }
                 } else {

@@ -26,18 +26,16 @@ CREATE TABLE Release (
   ReleaseDate date NOT NULL
 );
 
+CREATE TABLE GuildUser (
+  id serial PRIMARY KEY,
+  Snowflake bigint NOT NULL
+);
 
 CREATE TABLE Guild (
   id serial PRIMARY KEY,
   Snowflake bigint UNIQUE NOT NULL,
-  Owner bigint NOT NULL,
+  Owner int NOT NULL REFERENCES GuildUser ON DELETE CASCADE,
   Joined timestamp NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE GuildUser (
-  id serial PRIMARY KEY,
-  Snowflake bigint NOT NULL,
-  GuildId int NOT NULL REFERENCES Guild
 );
 
 CREATE TABLE GuildRelease (

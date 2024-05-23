@@ -24,21 +24,21 @@ pub(crate) async fn create_guild(
     guild: &serenity::Guild,
     pool: &PgPool,
 ) -> Result<(), sqlx::Error> {
+    // Add owner to guild users
+    let user_db_id: Int = query_scalar("SELECT fetch_or_insert_guild_user($1)")
+        .bind(guild.owner_id.get() as BigInt)
+        .fetch_one(pool)
+        .await?;
+
     // Add Guild to database
     let guild_db_id: Int =
         query_scalar("INSERT INTO Guild (Snowflake, Owner) VALUES ($1, $2) RETURNING id;")
             .bind(guild.id.get() as BigInt)
-            .bind(guild.owner_id.get() as BigInt)
+            .bind(user_db_id as Int)
             .fetch_one(pool)
             .await?;
-    initialise_guild_config(guild_db_id, pool).await?;
 
-    // Add owner to guild users
-    query("INSERT INTO GuildUser (Snowflake, GuildId) VALUES ($1, $2)")
-        .bind(guild.owner_id.get() as BigInt)
-        .bind(guild_db_id)
-        .execute(pool)
-        .await?;
+    initialise_guild_config(guild_db_id, pool).await?;
 
     Ok(())
 }
@@ -47,8 +47,8 @@ pub(crate) async fn remove_guild(
     guild_id: &serenity::GuildId,
     pool: &PgPool,
 ) -> Result<(), sqlx::Error> {
-    query("DELETE FROM Guild WHERE Snowflake=$1")
-        .bind(guild_id.get() as i64)
+    query("DELETE FROM Guild WHERE Snowflake=$1;")
+        .bind(guild_id.get() as BigInt)
         .execute(pool)
         .await?;
     Ok(())
@@ -62,12 +62,12 @@ pub(crate) async fn add_release_to_guild(
     pool: &PgPool,
 ) -> Result<(), Error> {
     let user_id = user.id;
-    let owner = query_scalar::<_, BigInt>("SELECT Owner FROM Guild WHERE Snowflake=$1")
+    let owner = query_scalar::<_, BigInt>("SELECT GuildUser.Snowflake FROM Guild INNER JOIN GuildUser ON Guild.Owner=GuildUser.id WHERE Guild.Snowflake=$1")
         .bind(guild_id.get() as BigInt)
         .fetch_one(pool)
         .await
         .expect("Couldn't find guild owner");
-    //
+
     // If the release already exists we just need to attach it to the database
     let release_response: Option<Int> = if let Some(label) = &release_submission.label {
         query_scalar(
@@ -81,7 +81,7 @@ pub(crate) async fn add_release_to_guild(
         .await.expect("Something went wrong here")
     } else {
         query_scalar(
-            "SELECT id FROM ReleaseData WHERE name=$1 AND artist=$2 AND label IS NULL AND releasedate=$4 LIMIT 1;",
+            "SELECT id FROM ReleaseData WHERE name=$1 AND artist=$2 AND label IS NULL AND releasedate=$3 LIMIT 1;",
         )
         .bind(&release_submission.name)
         .bind(&release_submission.artist)
