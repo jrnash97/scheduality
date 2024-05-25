@@ -48,7 +48,7 @@ CREATE TABLE GuildRelease (
 
 CREATE TABLE GuildPrivilegedRole (
   id serial PRIMARY KEY,
-  integer integer NOT NULL REFERENCES Guild ON DELETE CASCADE,
+  GuildId integer NOT NULL REFERENCES Guild ON DELETE CASCADE,
   Snowflake bigint NOT NULL
 );
 

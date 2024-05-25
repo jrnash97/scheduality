@@ -37,7 +37,7 @@ impl ReleaseSubmission {
             .components
             .into_iter()
             .map(|row| {
-                if let Some(ActionRowComponent::InputText(component)) = row.components.get(0) {
+                if let Some(ActionRowComponent::InputText(component)) = row.components.first() {
                     Some(component.to_owned())
                 } else {
                     None
@@ -58,7 +58,7 @@ impl ReleaseSubmission {
                 }
             })
             .collect::<Vec<String>>()
-            .get(0)
+            .first()
             .ok_or(Error::from("Error getting 'Artist'"))?
             .to_owned();
 
@@ -75,7 +75,7 @@ impl ReleaseSubmission {
                 }
             })
             .collect::<Vec<String>>()
-            .get(0)
+            .first()
             .ok_or(Error::from("Error getting 'Album'"))?
             .to_owned();
 
@@ -92,7 +92,7 @@ impl ReleaseSubmission {
                 }
             })
             .collect::<Vec<String>>()
-            .get(0)
+            .first()
             .ok_or(Error::from("Error getting 'Release Date'"))?
             .to_owned();
 
@@ -115,15 +115,15 @@ impl ReleaseSubmission {
                 }
             })
             .collect::<Vec<String>>()
-            .get(0)
+            .first()
             .cloned();
 
-        Ok(ReleaseSubmissionBuilder::new()
+        ReleaseSubmissionBuilder::new()
             .artist(artist)
             .name(name)
             .label(label)
             .release_date(release_date)?
-            .build()?)
+            .build()
     }
 }
 

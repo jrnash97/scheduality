@@ -1,7 +1,7 @@
 use crate::db;
 use crate::modals::ReleaseSubmission;
 use crate::utils::*;
-use poise::serenity_prelude as serenity;
+use poise::serenity_prelude::{self as serenity};
 use sqlx::Executor;
 
 pub async fn event_handler(
@@ -27,7 +27,7 @@ pub async fn event_handler(
             println!("{} is online.", data_about_bot.user.name);
         }
         serenity::FullEvent::GuildCreate { guild, .. } => {
-            db::create_guild(&guild, &data.pool)
+            db::create_guild(guild, &data.pool)
                 .await
                 .expect("Couldn't add guild'");
         }
@@ -54,12 +54,19 @@ pub async fn event_handler(
                 match db::add_release_to_guild(&guild_id, &user, ctx, &release_data, &data.pool)
                     .await
                 {
-                    Ok(_) => (),
-                    Err(err) => println!("{}", err.to_string()),
+                    Ok(_) => {}
+                    Err(err) => println!("{}", err),
                 }
             }
         }
         _ => (),
     }
     Ok(())
+}
+
+fn create_add_success_message(
+    user: serenity::User,
+    release_submission: &ReleaseSubmission,
+) -> serenity::CreateEmbed {
+    serenity::CreateEmbed::new().author(serenity::CreateEmbedAuthor::from(user))
 }

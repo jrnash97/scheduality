@@ -61,44 +61,95 @@ pub(crate) async fn add_release_to_guild(
     release_submission: &ReleaseSubmission,
     pool: &PgPool,
 ) -> Result<(), Error> {
-    let user_id = user.id;
+    // Check that GuildUser is allowed to add releases from the current guild (Is either Guild owner, or
+    // in the requested guild's privileged roles)
     let owner = query_scalar::<_, BigInt>("SELECT GuildUser.Snowflake FROM Guild INNER JOIN GuildUser ON Guild.Owner=GuildUser.id WHERE Guild.Snowflake=$1")
         .bind(guild_id.get() as BigInt)
         .fetch_one(pool)
         .await
-        .expect("Couldn't find guild owner");
+        .expect("Couldn't find guild owner"); // TODO: May be able to handle this case by retrieving full Guild struct, although it shouldn't happen...
 
-    // If the release already exists we just need to attach it to the database
-    let release_response: Option<Int> = if let Some(label) = &release_submission.label {
+    let is_privileged = is_user_privileged(user, guild_id, ctx, pool).await?;
+
+    // If user is not allowed to add releases return appropriate response (Likely an Err)
+    if !(owner == user.id.get() as BigInt || is_privileged) {
+        return Ok(());
+    }
+
+    // Find release if it already exists, otherwise add it to the database
+    let release_id = if let Some(id) = fetch_release_id(release_submission, pool).await? {
+        id
+    } else {
+        add_release(release_submission, pool).await?
+    };
+
+    // Link the release ID to the current guild
+    let user_db_id: Int = query_scalar("SELECT fetch_or_insert_guild_user($1)")
+        .bind(user.id.get() as BigInt)
+        .fetch_one(pool)
+        .await
+        .expect("Couldn't find or insert user id'");
+
+    let guild_db_id: Int = query_scalar("SELECT id FROM Guild WHERE Snowflake=$1")
+        .bind(guild_id.get() as BigInt)
+        .fetch_one(pool)
+        .await?;
+
+    query("INSERT INTO GuildRelease (GuildId, ReleaseId, GuildUserId) VALUES ($1, $2, $3)")
+        .bind(guild_db_id)
+        .bind(release_id)
+        .bind(user_db_id)
+        .execute(pool)
+        .await
+        .expect("Couldn't link guild to release'");
+
+    // TODO: Return the client response message
+    Ok(())
+}
+
+async fn is_user_privileged(
+    user: &serenity::User,
+    guild_id: &serenity::GuildId,
+    ctx: &serenity::Context,
+    pool: &PgPool,
+) -> Result<bool, Error> {
+    let mut is_privileged = false;
+    let privileged_roles: Vec<BigInt> = query_scalar("SELECT GuildPrivilegedRole.Snowflake FROM GuildPrivilegedRole INNER JOIN Guild ON GuildPrivilegedRole.GuildId=Guild.id WHERE Guild.Snowflake=$1;")
+        .bind(guild_id.get() as BigInt)
+        .fetch_all(pool).await?;
+    for role in privileged_roles.iter() {
+        is_privileged = is_privileged
+            || user
+                .has_role(ctx, guild_id, serenity::RoleId::new(*role as u64))
+                .await?
+    }
+    Ok(is_privileged)
+}
+
+async fn fetch_release_id(
+    release_submission: &ReleaseSubmission,
+    pool: &PgPool,
+) -> Result<Option<Int>, sqlx::Error> {
+    if let Some(label) = &release_submission.label {
         query_scalar(
             "SELECT id FROM ReleaseData WHERE name=$1 AND artist=$2 AND label=$3 AND releasedate=$4 LIMIT 1;",
         )
         .bind(&release_submission.name)
         .bind(&release_submission.artist)
         .bind(label)
-        .bind(&release_submission.release_date)
+        .bind(release_submission.release_date)
         .fetch_optional(pool)
-        .await.expect("Something went wrong here")
+        .await
     } else {
         query_scalar(
             "SELECT id FROM ReleaseData WHERE name=$1 AND artist=$2 AND label IS NULL AND releasedate=$3 LIMIT 1;",
         )
         .bind(&release_submission.name)
         .bind(&release_submission.artist)
-        .bind(&release_submission.release_date)
+        .bind(release_submission.release_date)
         .fetch_optional(pool)
-        .await.expect("Something went wrong there")
-    };
-
-    let release_id = if let Some(id) = release_response {
-        id
-    } else {
-        add_release(release_submission, pool).await?
-    };
-
-    println!("{}", release_id);
-
-    Ok(())
+        .await
+    }
 }
 
 // TODO: Proper Error Handling
@@ -125,7 +176,7 @@ pub(crate) async fn add_release(
         .bind(artist_id)
         .bind(label_id)
         .bind(&release_submission.name)
-        .bind(&release_submission.release_date)
+        .bind(release_submission.release_date)
         .fetch_one(pool)
         .await
         .expect("Couldn't add release");
@@ -138,10 +189,7 @@ pub(crate) async fn add_release(
             .label
             .clone()
             .unwrap_or("self".to_string()),
-        release_submission
-            .release_date
-            .format("%Y-%m-%d")
-            .to_string()
+        release_submission.release_date.format("%Y-%m-%d")
     );
 
     Ok(release_id)
