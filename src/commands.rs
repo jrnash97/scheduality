@@ -1,3 +1,4 @@
+use crate::db;
 use crate::modals::*;
 use crate::utils::*;
 use poise::serenity_prelude as serenity;
@@ -15,10 +16,15 @@ pub async fn age(
     Ok(())
 }
 
+#[poise::command(slash_command, subcommands("add", "get"))]
+pub async fn scheduality(_ctx: Context<'_>) -> Result<(), Error> {
+    Ok(())
+}
+
 /// Say "World!"
 #[poise::command(slash_command)]
-pub async fn hello(ctx: Context<'_>) -> Result<(), Error> {
-    ctx.say("World!").await?;
+pub async fn ping(ctx: Context<'_>) -> Result<(), Error> {
+    ctx.say("Pong!").await?;
     Ok(())
 }
 
@@ -26,5 +32,17 @@ pub async fn hello(ctx: Context<'_>) -> Result<(), Error> {
 #[poise::command(slash_command)]
 pub async fn add(ctx: poise::ApplicationContext<'_, Data, Error>) -> Result<(), Error> {
     AddRelease::execute(ctx).await?;
+    Ok(())
+}
+
+/// List releases
+#[poise::command(slash_command)]
+pub async fn get(ctx: Context<'_>) -> Result<(), Error> {
+    let releases = db::fetch_releases(ctx).await;
+    if let Ok(r) = releases {
+        println!("{r:#?}");
+    } else {
+        ctx.say("Something went wrong").await?;
+    }
     Ok(())
 }

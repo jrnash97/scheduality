@@ -1,7 +1,9 @@
 use crate::modals::ReleaseSubmission;
-use crate::utils::Error;
+use crate::utils::{Context, Error};
 use poise::serenity_prelude as serenity;
-use sqlx::{query, query_scalar, PgPool};
+use sqlx::{query, query_as, query_scalar, PgPool};
+
+use self::response::ReleaseData;
 
 // Use these type aliases to interface with the database to avoid type conversion issues
 type Int = i32;
@@ -11,7 +13,7 @@ pub(super) mod response {
     use chrono::NaiveDate;
     use sqlx::FromRow;
 
-    #[derive(FromRow)]
+    #[derive(FromRow, Debug)]
     pub struct ReleaseData {
         pub artist: String,
         pub name: String,
@@ -201,4 +203,14 @@ async fn initialise_guild_config(guild_db_id: Int, pool: &PgPool) -> Result<(), 
         .execute(pool)
         .await?;
     Ok(())
+}
+
+pub(crate) async fn fetch_releases(ctx: Context<'_>) -> Result<Vec<ReleaseData>, Error> {
+    let guild_id = ctx.guild_id().ok_or(Error::from("Oh No!!!"))?;
+    let pool = &ctx.data().pool;
+    let releases:  Vec<ReleaseData> = query_as("SELECT ReleaseData.* FROM ReleaseData INNER JOIN GuildRelease ON GuildRelease.ReleaseId=ReleaseData.id INNER JOIN Guild ON Guild.Id = GuildRelease.GuildId WHERE Guild.Snowflake=$1")
+        .bind(guild_id.get() as BigInt)
+        .fetch_all(pool)
+    .await?;
+    Ok(releases)
 }

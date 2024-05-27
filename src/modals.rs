@@ -31,11 +31,11 @@ pub(crate) struct ReleaseSubmission {
 
 impl ReleaseSubmission {
     pub fn from_modal_response(
-        modal_response: ModalInteractionData,
+        modal_response: &ModalInteractionData,
     ) -> Result<ReleaseSubmission, Error> {
         let mut rows: Vec<Option<InputText>> = modal_response
             .components
-            .into_iter()
+            .iter()
             .map(|row| {
                 if let Some(ActionRowComponent::InputText(component)) = row.components.first() {
                     Some(component.to_owned())
