@@ -26,17 +26,3 @@ END;
 $$
 LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION fetch_or_insert_guild_user(bigint) RETURNS integer 
-AS $$
-DECLARE UserId integer;
-BEGIN
-  IF (SELECT count(*) FROM GuildUser WHERE Snowflake = $1) >= 1 THEN
-    SELECT id INTO UserId FROM GuildUser WHERE Snowflake=$1 LIMIT 1;
-  ELSE
-    INSERT INTO GuildUser (Snowflake) VALUES ($1) RETURNING id INTO UserId;
-  END IF;
-  RETURN UserId;
-END;
-$$
-LANGUAGE plpgsql;
-
