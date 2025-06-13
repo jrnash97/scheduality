@@ -1,17 +1,17 @@
 CREATE TABLE IF NOT EXISTS Artist (
   id serial PRIMARY KEY,
-  Name text NOT NULL
+  Name varchar NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS Label (
   id serial PRIMARY KEY,
-  Name text
+  Name varchar
 );
 
 CREATE TABLE IF NOT EXISTS Release (
   id serial PRIMARY KEY,
   uid uuid NOT NULL DEFAULT gen_random_uuid(),
-  Name text NOT NULL,
+  Name varchar NOT NULL,
   Artist integer NOT NULL REFERENCES Artist ON DELETE RESTRICT,
   Label integer REFERENCES Label ON DELETE SET NULL,
   ReleaseDate date NOT NULL
