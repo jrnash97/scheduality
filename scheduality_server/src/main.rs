@@ -1,8 +1,7 @@
 use actix_web::{web, Responder};
-use chrono;
-use clap;
+use scheduality::scheduality_db::SchedualityDb;
 use serde::{Deserialize, Serialize};
-use sqlx::postgres;
+use sqlx::Postgres;
 use std::env;
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -16,12 +15,12 @@ struct ReleaseInfo {
 }
 
 struct AppData {
-    db_connection_pool: postgres::PgPool,
+    db: SchedualityDb<Postgres>,
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let cmd = clap::Command::new("scheduality")
+    let cmd = clap::Command::new("")
         .arg(
             clap::Arg::new("drop_db")
                 .long("drop-database")
@@ -31,23 +30,23 @@ async fn main() -> std::io::Result<()> {
         .get_matches();
     std::env::set_var("RUST_LOG", "debug");
     env_logger::init();
-    let con_var = if cfg!(debug_assertions) {
+
+    let con_var = env::var(if cfg!(debug_assertions) {
         "SCHEDUALITY_TEST_DB_URL"
     } else {
         "DB_URI"
-    };
-    let db_connection_pool = postgres::PgPool::connect(&env::var(con_var).unwrap())
-        .await
-        .unwrap();
-    if *cmd.get_one::<bool>("drop_db").unwrap() {
-        drop_db_tables(&db_connection_pool).await.unwrap();
+    })
+    .unwrap();
+
+    let db = SchedualityDb::connect(&con_var).await.unwrap();
+    if *cmd.get_one::<bool>("drop_db").unwrap_or(&false) {
+        db.drop_tables().await.unwrap();
     }
-    db_setup(&db_connection_pool).await.unwrap();
+    db.setup().await.unwrap();
+
     actix_web::HttpServer::new(move || {
         actix_web::App::new()
-            .app_data(web::Data::new(AppData {
-                db_connection_pool: db_connection_pool.clone(),
-            }))
+            .app_data(web::Data::new(AppData { db: db.clone() }))
             .service(echo)
             .service(web::scope("/api").service(add_release))
     })
@@ -56,43 +55,14 @@ async fn main() -> std::io::Result<()> {
     .await
 }
 
-async fn drop_db_tables(db_connection_pool: &postgres::PgPool) -> Result<(), sqlx::Error> {
-    use std::fs;
-
-    let drop_query = fs::read_to_string("./schema/drop.sql").unwrap();
-    sqlx::raw_sql(&drop_query)
-        .execute(db_connection_pool)
-        .await?;
-
-    Ok(())
-}
-
-async fn db_setup(db_connection_pool: &postgres::PgPool) -> Result<(), sqlx::Error> {
-    use std::fs;
-
-    let tables_schema = fs::read_to_string("./schema/tables.sql")?;
-    let tables_future = sqlx::raw_sql(&tables_schema).execute(db_connection_pool);
-    let functions_schema = fs::read_to_string("./schema/functions.sql")?;
-    let views_schema = fs::read_to_string("./schema/views.sql")?;
-    tables_future.await?;
-
-    let functions_future = sqlx::raw_sql(&functions_schema).execute(db_connection_pool);
-    let views_future = sqlx::raw_sql(&views_schema).execute(db_connection_pool);
-
-    functions_future.await?;
-    views_future.await?;
-
-    Ok(())
-}
-
 #[actix_web::get("/echo")]
 async fn echo() -> &'static str {
-    "Hello!"
+    "Hello, Scheduality!"
 }
 
 #[actix_web::post("/add-release")]
 async fn add_release(info: web::Json<ReleaseInfo>, data: web::Data<AppData>) -> impl Responder {
-    let db_connection_pool = &data.db_connection_pool;
+    let _db_connection_pool = &data.db;
     let input = format!("{info:#?}");
 
     println!("{}", input);
