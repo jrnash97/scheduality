@@ -1,5 +1,5 @@
 use actix_web::{web, Responder};
-use scheduality::scheduality_db::SchedualityDb;
+use scheduality::scheduality_db::{ExtSchedualityDb, SchedualityDb};
 use serde::{Deserialize, Serialize};
 use sqlx::Postgres;
 use std::env;
