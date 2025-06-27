@@ -2,14 +2,14 @@ use sqlx::{pool::Pool, Postgres};
 
 pub type SchedualityDb<DB> = Pool<DB>;
 
-pub trait ExtSchedualityDb {
+pub trait SchedualityDbExt {
     #[allow(async_fn_in_trait)]
     async fn drop_tables(&self) -> Result<(), sqlx::Error>;
     #[allow(async_fn_in_trait)]
     async fn setup(&self) -> Result<(), sqlx::Error>;
 }
 
-impl ExtSchedualityDb for SchedualityDb<Postgres> {
+impl SchedualityDbExt for SchedualityDb<Postgres> {
     async fn drop_tables(&self) -> Result<(), sqlx::Error> {
         use std::fs;
 
@@ -23,16 +23,11 @@ impl ExtSchedualityDb for SchedualityDb<Postgres> {
         use std::fs;
 
         let tables_schema = fs::read_to_string("./schema/tables.sql")?;
-        let tables_future = sqlx::raw_sql(&tables_schema).execute(self);
         let functions_schema = fs::read_to_string("./schema/functions.sql")?;
         let views_schema = fs::read_to_string("./schema/views.sql")?;
-        tables_future.await?;
-
-        let functions_future = sqlx::raw_sql(&functions_schema).execute(self);
-        let views_future = sqlx::raw_sql(&views_schema).execute(self);
-
-        functions_future.await?;
-        views_future.await?;
+        sqlx::raw_sql(&tables_schema).execute(self).await?;
+        sqlx::raw_sql(&functions_schema).execute(self).await?;
+        sqlx::raw_sql(&views_schema).execute(self).await?;
 
         Ok(())
     }
